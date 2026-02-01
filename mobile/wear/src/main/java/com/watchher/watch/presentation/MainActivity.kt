@@ -2,7 +2,7 @@ package com.watchher.watch.presentation
 
 import android.Manifest
 import android.content.*
-import android.net.Uri
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
@@ -32,20 +32,24 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.google.android.gms.wearable.Wearable
 import com.watchher.messages.WatchToPhone
 import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
+import com.watchher.watch.presentation.sensors.HeartRateReader
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
 
@@ -58,37 +62,84 @@ class MainActivity : ComponentActivity() {
             val watchHerGreen = Color(0xFF32CD32)
             val context = LocalContext.current
 
+            fun requiredPermissions(): List<String> {
+                val permissions = mutableListOf(
+                    Manifest.permission.BODY_SENSORS,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permissions.add(Manifest.permission.BODY_SENSORS_BACKGROUND)
+                }
+                return permissions
+            }
+
+            fun hasAllPermissions(): Boolean {
+                return requiredPermissions().all { permission ->
+                    context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+                }
+            }
+
             var heartRate by remember { mutableIntStateOf(0) }
-            var hasPermission by remember { mutableStateOf(false) }
-            var permissionRequestDone by remember { mutableStateOf(false) }
+            var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
+            var permissionRequested by remember { mutableStateOf(false) }
+            val lifecycleOwner = LocalLifecycleOwner.current
+            val heartRateReader = remember { HeartRateReader(context) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.RequestPermission(),
-                onResult = { isGranted ->
-                    hasPermission = isGranted
-                    permissionRequestDone = true
-                }
-            )
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) { results ->
+                hasPermission = results.values.all { it }
+                permissionRequested = true
+            }
 
+            // Request permission once if needed
+            LaunchedEffect(hasPermission) {
+                if (!hasPermission && !permissionRequested) {
+                    permissionRequested = true
+                    permissionLauncher.launch(requiredPermissions().toTypedArray())
+                }
+            }
+
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        hasPermission = hasAllPermissions()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            LaunchedEffect(hasPermission) {
+                if (hasPermission) {
+                    heartRateReader.heartRateFlow().collectLatest { newHeartRate ->
+                        heartRate = newHeartRate
+                    }
+                }
+            }
+
+            // Receive heart rate updates
             DisposableEffect(Unit) {
                 val receiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
-                        val newHeartRate = intent?.getIntExtra(PhoneReceiverService.EXTRA_HEART_RATE, 0)
+                        val newHeartRate =
+                            intent?.getIntExtra(PhoneReceiverService.EXTRA_HEART_RATE, 0)
                         if (newHeartRate != null && newHeartRate > 0) {
                             heartRate = newHeartRate
                         }
                     }
                 }
+
                 val filter = IntentFilter(PhoneReceiverService.ACTION_HEART_RATE_UPDATE)
-                LocalBroadcastManager.getInstance(context).registerReceiver(receiver, filter)
+                LocalBroadcastManager.getInstance(context)
+                    .registerReceiver(receiver, filter)
 
                 onDispose {
-                    LocalBroadcastManager.getInstance(context).unregisterReceiver(receiver)
+                    LocalBroadcastManager.getInstance(context)
+                        .unregisterReceiver(receiver)
                 }
-            }
-
-            LaunchedEffect(Unit) {
-                permissionLauncher.launch(Manifest.permission.BODY_SENSORS)
             }
 
             MaterialTheme {
@@ -123,42 +174,10 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        if (permissionRequestDone && !hasPermission) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "Permission Denied",
-                                    color = watchHerPink,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    "Heart rate data is required for WatchHer to function.",
-                                    color = Color.White,
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 12.sp
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .background(Color(0xFF2E2E2E))
-                                        .clickable {
-                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                            val uri = Uri.fromParts("package", context.packageName, null)
-                                            intent.data = uri
-                                            context.startActivity(intent)
-                                        }
-                                        .padding(horizontal = 32.dp, vertical = 10.dp)
-                                ) {
-                                    Text("Open Settings", color = Color.White, fontSize = 14.sp)
-                                }
-                            }
-                        } else {
-                            val monitoringText = if (heartRate > 0) "$heartRate BPM" else "Monitoring..."
+                        run {
+                            val monitoringText =
+                                if (heartRate > 0) "Monitoring... $heartRate BPM" else "Monitoring..."
+
                             Text(
                                 monitoringText,
                                 fontSize = 14.sp,
@@ -167,9 +186,9 @@ class MainActivity : ComponentActivity() {
 
                             Spacer(modifier = Modifier.height(2.dp))
 
-                            val hrProgress = ((heartRate - 50f) / 130f).coerceIn(0f, 1f)
+                            val hrProgress =
+                                ((heartRate - 50f) / 130f).coerceIn(0f, 1f)
 
-                            // Custom progress bar
                             Box(
                                 modifier = Modifier
                                     .height(8.dp)
@@ -189,14 +208,19 @@ class MainActivity : ComponentActivity() {
 
                             if (alertActive) {
                                 val progress = remember { Animatable(0f) }
+
                                 val vibrator = remember {
                                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                        val vibratorManager =
-                                            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-                                        vibratorManager.defaultVibrator
+                                        val manager =
+                                            context.getSystemService(
+                                                Context.VIBRATOR_MANAGER_SERVICE
+                                            ) as VibratorManager
+                                        manager.defaultVibrator
                                     } else {
                                         @Suppress("DEPRECATION")
-                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                        context.getSystemService(
+                                            Context.VIBRATOR_SERVICE
+                                        ) as Vibrator
                                     }
                                 }
 
@@ -204,22 +228,31 @@ class MainActivity : ComponentActivity() {
                                     if (alertActive) {
                                         val vibrationJob: Job = launch {
                                             while (isActive) {
-                                                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                                                vibrator.vibrate(
+                                                    VibrationEffect.createOneShot(
+                                                        200,
+                                                        VibrationEffect.DEFAULT_AMPLITUDE
+                                                    )
+                                                )
                                                 delay(2500)
                                             }
                                         }
 
                                         val result = progress.animateTo(
-                                            targetValue = 1f,
-                                            animationSpec = tween(
-                                                durationMillis = 10000,
+                                            1f,
+                                            tween(
+                                                durationMillis = 10_000,
                                                 easing = LinearEasing
                                             )
                                         )
-                                        if (result.endReason == AnimationEndReason.Finished) {
+
+                                        if (result.endReason ==
+                                            AnimationEndReason.Finished
+                                        ) {
                                             alertActive = false
                                             alertSent = true
                                         }
+
                                         vibrationJob.cancel()
                                     }
                                 }
@@ -245,8 +278,10 @@ class MainActivity : ComponentActivity() {
                                         .drawWithContent {
                                             drawContent()
                                             drawRect(
-                                                color = Color.Black.copy(alpha = 0.3f),
-                                                size = size.copy(width = size.width * progress.value)
+                                                Color.Black.copy(alpha = 0.3f),
+                                                size = size.copy(
+                                                    width = size.width * progress.value
+                                                )
                                             )
                                         }
                                 ) {
@@ -254,9 +289,13 @@ class MainActivity : ComponentActivity() {
                                         "Cancel",
                                         color = Color.White,
                                         fontSize = 14.sp,
-                                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 10.dp)
+                                        modifier = Modifier.padding(
+                                            horizontal = 32.dp,
+                                            vertical = 10.dp
+                                        )
                                     )
                                 }
+
                             } else if (alertSent) {
                                 Text(
                                     "ALERT SENT",
