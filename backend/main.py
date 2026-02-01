@@ -1,7 +1,3 @@
-"""
-WatchHer backend (Flask).
-"""
-
 import argparse
 import time
 from flask import Flask, jsonify, request
@@ -29,28 +25,24 @@ def create_app() -> Flask:
 
     return app
 
-
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="WatchHer Flask backend")
 
     parser.add_argument("--host", default="localhost", help="Bind address (default: %(default)s)")
     parser.add_argument("--port", type=int, default=8080, help="Bind port (default: %(default)s)")
 
-    debug_group = parser.add_mutually_exclusive_group()
-    debug_group.add_argument("--debug", action="store_true", help="Enable debug mode")
-    debug_group.add_argument("--no-debug", action="store_true", help="Disable debug mode")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode")
 
     args = parser.parse_args()
-    if args.debug:
-        args.debug = True
-    else:
+
+    if not args.debug:
         args.debug = False
     return args
 
-
-# Expose a WSGI app for hosting (servers can import `backend.main:app`).
-app = create_app()
-
 if __name__ == "__main__":
     args = _parse_args()
+
+    # Expose a WSGI app for hosting (servers can import `backend.main:app`)
+    app = create_app()
+
     app.run(host=args.host, port=args.port, debug=args.debug)
