@@ -29,6 +29,7 @@ class StepCounterService : Service(), SensorEventListener {
     private lateinit var sensorManager: SensorManager
     private var stepCounter: Sensor? = null
     private var stepDetector: Sensor? = null
+    private var detectorSteps: Float = 0f
 
     override fun onCreate() {
         super.onCreate()
@@ -38,6 +39,7 @@ class StepCounterService : Service(), SensorEventListener {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d("StepCounterService", "onStartCommand")
         if (!hasRequiredPermissions()) {
             Log.w("StepCounterService", "Missing ACTIVITY_RECOGNITION permission")
             stopSelf()
@@ -86,6 +88,7 @@ class StepCounterService : Service(), SensorEventListener {
                 return START_NOT_STICKY
             }
         }
+        Log.d("StepCounterService", "Step sensor registered")
         return START_STICKY
     }
 
@@ -97,7 +100,17 @@ class StepCounterService : Service(), SensorEventListener {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onSensorChanged(event: SensorEvent) {
-        val steps = event.values.firstOrNull() ?: return
+        val raw = event.values.firstOrNull() ?: return
+        val steps = if (event.sensor.type == Sensor.TYPE_STEP_DETECTOR) {
+            detectorSteps += raw
+            detectorSteps
+        } else {
+            raw
+        }
+        Log.d(
+            "StepCounterService",
+            "Step update type=${event.sensor.type} raw=$raw steps=$steps"
+        )
         val update = Intent(ACTION_STEP_UPDATE)
         update.putExtra(EXTRA_STEP_COUNT, steps)
         LocalBroadcastManager.getInstance(this).sendBroadcast(update)

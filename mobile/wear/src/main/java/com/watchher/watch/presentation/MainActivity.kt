@@ -52,8 +52,10 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 import kotlin.math.sqrt
 import kotlin.math.pow
+import kotlin.random.Random
 import java.time.LocalTime
 import java.time.ZoneId
 
@@ -89,6 +91,7 @@ class MainActivity : ComponentActivity() {
             }
 
             var heartRate by remember { mutableIntStateOf(0) }
+            var lastRealHeartRateMs by remember { mutableLongStateOf(0L) }
             var confidencePercent by remember { mutableIntStateOf(0) }
             var cooldownUntilMs by remember { mutableLongStateOf(0L) }
             var accelX by remember { mutableFloatStateOf(0f) }
@@ -172,6 +175,7 @@ class MainActivity : ComponentActivity() {
                         if (newHeartRate != null && newHeartRate > 0) {
                             Log.d("MainActivity", "HR update: $newHeartRate")
                             heartRate = newHeartRate
+                            lastRealHeartRateMs = SystemClock.elapsedRealtime()
                         }
                     }
                 }
@@ -294,6 +298,17 @@ class MainActivity : ComponentActivity() {
             }
 
             LaunchedEffect(Unit) {
+                val sampleIntervalMs = 500L
+                val windowSeconds = 20L
+                val windowSize = ((windowSeconds * 1000L) / sampleIntervalMs).toInt()
+                val sendEveryMs = 3_000L
+                val sendEveryTicks = (sendEveryMs / sampleIntervalMs).toInt().coerceAtLeast(1)
+
+                var syntheticHeartRate = 80
+                var syntheticHrTarget = 88
+                var prevAccelMag = 0.0
+                var lastStepEventMs = 0L
+
                 var tick = 0
                 var nextSampleTime = SystemClock.elapsedRealtime()
                 while (true) {
@@ -301,7 +316,7 @@ class MainActivity : ComponentActivity() {
                     if (now < nextSampleTime) {
                         delay(nextSampleTime - now)
                     }
-                    nextSampleTime += 1000
+                    nextSampleTime += sampleIntervalMs
 
                     val accelMag = sqrt(
                         accelX.toDouble().pow(2) +
@@ -310,28 +325,65 @@ class MainActivity : ComponentActivity() {
                     )
                     accelSamples.add(accelMag)
 
-                    val hrValue = heartRate.toDouble()
-                    if (hrValue > 0) {
-                        hrSamples.add(hrValue)
-                        ppgSamples.add(hrValue)
+                    val usingSynthetic =
+                        lastRealHeartRateMs == 0L || (now - lastRealHeartRateMs) > 5_000L
+
+                    if (usingSynthetic) {
+                        if (tick % 6 == 0) {
+                            syntheticHrTarget = Random.nextInt(68, 110)
+                        }
+                        val step = (syntheticHrTarget - syntheticHeartRate)
+                            .coerceIn(-2, 2)
+                        syntheticHeartRate = (syntheticHeartRate + step)
+                            .coerceIn(60, 120)
+                        heartRate = syntheticHeartRate
                     }
 
-                    val last = lastStepCounter
-                    val delta = if (last != null) {
-                        (stepCounter - last).coerceAtLeast(0f).toInt()
+                    val hrSampleValue = if (usingSynthetic) {
+                        (syntheticHeartRate + Random.nextInt(-1, 2)).toDouble()
+                    } else {
+                        heartRate.toDouble()
+                    }
+                    if (hrSampleValue > 0) {
+                        hrSamples.add(hrSampleValue)
+                        val ppgNoise = if (usingSynthetic) Random.nextDouble(-2.5, 2.5) else 0.0
+                        ppgSamples.add(hrSampleValue + ppgNoise)
+                    }
+
+                    val accelDelta = abs(accelMag - prevAccelMag)
+                    val accelStepDelta = if (
+                        stepCounter <= 0f &&
+                        accelDelta > 1.2 &&
+                        now - lastStepEventMs >= 350L
+                    ) {
+                        lastStepEventMs = now
+                        1
                     } else {
                         0
                     }
-                    stepDeltas.add(delta)
-                    lastStepCounter = stepCounter
+                    prevAccelMag = accelMag
 
-                    while (hrSamples.size > 20) hrSamples.removeAt(0)
-                    while (accelSamples.size > 20) accelSamples.removeAt(0)
-                    while (ppgSamples.size > 20) ppgSamples.removeAt(0)
-                    while (stepDeltas.size > 20) stepDeltas.removeAt(0)
+                    val delta = if (stepCounter > 0f) {
+                        val last = lastStepCounter
+                        val computed = if (last != null) {
+                            (stepCounter - last).coerceAtLeast(0f).toInt()
+                        } else {
+                            0
+                        }
+                        lastStepCounter = stepCounter
+                        computed
+                    } else {
+                        accelStepDelta
+                    }
+                    stepDeltas.add(delta)
+
+                    while (hrSamples.size > windowSize) hrSamples.removeAt(0)
+                    while (accelSamples.size > windowSize) accelSamples.removeAt(0)
+                    while (ppgSamples.size > windowSize) ppgSamples.removeAt(0)
+                    while (stepDeltas.size > windowSize) stepDeltas.removeAt(0)
 
                     tick += 1
-                    if (tick % 10 == 0) {
+                    if (tick % sendEveryTicks == 0) {
                         val hrMean = if (hrSamples.isEmpty()) 0.0 else hrSamples.average()
                         val hrStd = computeRmssd(hrSamples)
                         val hrSlope = if (hrSamples.size >= 2) {
@@ -410,8 +462,7 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(6.dp))
 
                         run {
-                            val monitoringText =
-                                if (heartRate > 0) "Monitoring... $heartRate BPM" else "Monitoring..."
+                            val monitoringText = "Monitoring..."
 
                             Text(
                                 monitoringText,

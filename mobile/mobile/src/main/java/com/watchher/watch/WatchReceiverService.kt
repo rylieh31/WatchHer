@@ -8,7 +8,7 @@ import com.google.android.gms.wearable.WearableListenerService
 
 import com.watchher.messages.WatchToPhone
 import com.watchher.messages.PhoneToWatch
-import kotlin.random.Random
+import kotlin.math.roundToInt
 
 class WatchReceiverService : WearableListenerService() {
     companion object {
@@ -28,6 +28,17 @@ class WatchReceiverService : WearableListenerService() {
         const val PACKAGE = "com.watchher.watch"
     }
 
+    private val modelInference: ModelInference? by lazy {
+        try {
+            assets.open("rf_model.json").use { stream ->
+                ModelInference(stream)
+            }
+        } catch (e: Exception) {
+            Log.e("WatchReceiverService", "Model load failed", e)
+            null
+        }
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("WatchReceiverService", "WatchReceiverService started")
         return super.onStartCommand(intent, flags, startId)
@@ -37,10 +48,20 @@ class WatchReceiverService : WearableListenerService() {
         val watchData = WatchToPhone.decodeJson(String(message.data))
         Log.d("WatchReceiverService", "Received message: $watchData")
 
-        val confidence = Random.nextInt(0, 101)
-
-        // todo: process with Java API
-        // todo: send cry for help if needed
+        val features = doubleArrayOf(
+            watchData.hrMean,
+            watchData.hrStd,
+            watchData.hrSlope,
+            watchData.steps20s.toDouble(),
+            watchData.accelRms,
+            watchData.accelPeak,
+            watchData.ppgStd,
+            watchData.timeOfDay
+        )
+        val confidence = modelInference
+            ?.predict(features)
+            ?.let { (it * 100.0).roundToInt().coerceIn(0, 100) }
+            ?: 0
 
         val mobileUiUpdateIntent = Intent(ACTION_UPDATE_SAFETY_STATUS).apply {
             putExtra(
