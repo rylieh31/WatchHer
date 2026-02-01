@@ -301,7 +301,7 @@ class MainActivity : ComponentActivity() {
                 val sampleIntervalMs = 500L
                 val windowSeconds = 20L
                 val windowSize = ((windowSeconds * 1000L) / sampleIntervalMs).toInt()
-                val sendEveryMs = 3_000L
+                val sendEveryMs = 2_000L
                 val sendEveryTicks = (sendEveryMs / sampleIntervalMs).toInt().coerceAtLeast(1)
 
                 var syntheticHeartRate = 80
