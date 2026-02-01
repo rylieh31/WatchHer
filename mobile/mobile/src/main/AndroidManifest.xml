@@ -12,7 +12,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WatchHer">
         <service
-            android:name=".WatchDataService"
+            android:name=".WatchRecieverService"
             android:enabled="true"
             android:exported="true">
             <intent-filter>

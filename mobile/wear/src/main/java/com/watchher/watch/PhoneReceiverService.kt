@@ -6,9 +6,9 @@ import com.google.android.gms.wearable.MessageEvent
 import com.google.android.gms.wearable.WearableListenerService
 import com.watchher.messages.PhoneToWatch
 
-class PhoneDataService : WearableListenerService() {
+class PhoneReceiverService : WearableListenerService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("WatchHer", "PhoneResultService started")
+        Log.d("WatchHer", "PhoneReceiverService started")
         return super.onStartCommand(intent, flags, startId)
     }
 

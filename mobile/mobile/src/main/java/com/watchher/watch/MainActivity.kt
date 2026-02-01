@@ -26,7 +26,7 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        startService(Intent(this, WatchDataService::class.java))
+        startService(Intent(this, WatchRecieverService::class.java))
 
         Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
             for (node in nodes) {
