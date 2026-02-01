@@ -1,13 +1,8 @@
 package com.watchher.watch
 
-import android.content.BroadcastReceiver
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
-import android.graphics.Color
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
+import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -17,95 +12,100 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.localbroadcastmanager.content.LocalBroadcastManager
-import com.google.android.gms.wearable.Wearable
-import com.watchher.messages.PhoneToWatch
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var contactAdapter: ContactAdapter
+    private val contactList = mutableListOf<EmergencyContact>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
-
+        
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main)) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
 
-        val safetyStatusUpdateReceiver = object : BroadcastReceiver() {
-            override fun onReceive(context: Context?, intent: Intent?) {
-                val safetyStatus = intent?.getStringExtra(WatchReceiverService.SAFETY_STATUS)
-                Log.d("WatchHerMobile", "Received broadcast: $safetyStatus")
-                val textView: TextView = findViewById(R.id.tv_status_value)
-                if (safetyStatus == "safe") {
-                    textView.text = "SAFE"
-                    textView.setTextColor(resources.getColor(R.color.neon_green))
-                } else if (safetyStatus == "unsafe") {
-                    textView.text = "IN DANGER"
-                    textView.setTextColor(Color.rgb(255, 0, 0))
-                }
-            }
+        // Setup RecyclerView
+        val rvContacts = findViewById<RecyclerView>(R.id.rv_contacts)
+        contactAdapter = ContactAdapter(contactList) { contact, position ->
+            showContactDialog(contact, position)
         }
-        val filter = IntentFilter(WatchReceiverService.ACTION_UPDATE_SAFETY_STATUS)
+        rvContacts.adapter = contactAdapter
+        rvContacts.layoutManager = LinearLayoutManager(this)
 
-        registerReceiver(safetyStatusUpdateReceiver, filter, RECEIVER_NOT_EXPORTED)
-
-
-        startService(Intent(this, WatchReceiverService::class.java))
-
-        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
-            for (node in nodes) {
-                Log.d("WatchHerMobile", "Found node: ${node.displayName}")
-
-                val data = PhoneToWatch(0.52)
-
-                Wearable.getMessageClient(this)
-                    .sendMessage(
-                        node.id,
-                        "/watch_her/phone_to_watch",
-                        data.encodeJson().toByteArray()
-                    )
-                    .addOnSuccessListener {
-                        Log.d("WatchHerMobile", "Message Sent!!!")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("WatchHerMobile", "Failed to send message", e)
-                    }
-            }
-        }
-
-
-        // Find the button we added in the XML
-        val btnAddContact = findViewById<Button>(R.id.btn_open_add_contact)
-
-        // Set what happens when you click it
-        btnAddContact.setOnClickListener {
-            showAddContactDialog()
+        val btnOpenAddContact = findViewById<Button>(R.id.btn_open_add_contact)
+        btnOpenAddContact.setOnClickListener {
+            showContactDialog()
         }
     }
 
-    private fun showAddContactDialog() {
+    private fun showContactDialog(contact: EmergencyContact? = null, position: Int = -1) {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_contact, null)
+        val etName = dialogView.findViewById<EditText>(R.id.dialog_et_name)
+        val etPhone = dialogView.findViewById<EditText>(R.id.dialog_et_phone)
+        val etRelationship = dialogView.findViewById<EditText>(R.id.dialog_et_relationship)
+        val tvTitle = dialogView.findViewById<TextView>(R.id.tv_dialog_title)
+        val btnDelete = dialogView.findViewById<Button>(R.id.btn_dialog_delete)
+        val btnCancel = dialogView.findViewById<Button>(R.id.btn_dialog_cancel)
+        val btnSave = dialogView.findViewById<Button>(R.id.btn_dialog_save)
 
-        val builder = AlertDialog.Builder(this)
+        val isEditing = contact != null
+        if (isEditing) {
+            tvTitle.text = "Edit Contact"
+            etName.setText(contact?.name)
+            etPhone.setText(contact?.phone)
+            etRelationship.setText(contact?.relationship)
+            btnDelete.visibility = View.VISIBLE
+            btnSave.text = "Update"
+        } else {
+            tvTitle.text = "Add to Circle"
+            btnDelete.visibility = View.GONE
+            btnSave.text = "Save"
+        }
+
+        val alertDialog = AlertDialog.Builder(this)
             .setView(dialogView)
-            .setTitle("Add Contact")
-            .setPositiveButton("Save") { _, _ ->
-                val name = dialogView.findViewById<EditText>(R.id.dialog_et_name).text.toString()
-                val phone = dialogView.findViewById<EditText>(R.id.dialog_et_phone).text.toString()
-                val relationship =
-                    dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString()
+            .setCancelable(true)
+            .create()
 
-                if (name.isNotEmpty() && phone.isNotEmpty()) {
-                    // For now, just show a message to prove it works
-                    Toast.makeText(this, "Saved: $name", Toast.LENGTH_SHORT).show()
+        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
+
+        btnCancel.setOnClickListener {
+            alertDialog.dismiss()
+        }
+
+        btnDelete.setOnClickListener {
+            contactAdapter.removeContact(position)
+            Toast.makeText(this, "Deleted: ${contact?.name}", Toast.LENGTH_SHORT).show()
+            alertDialog.dismiss()
+        }
+
+        btnSave.setOnClickListener {
+            val name = etName.text.toString().trim()
+            val phone = etPhone.text.toString().trim()
+            val relationship = etRelationship.text.toString().trim()
+            
+            if (name.isNotEmpty() && phone.isNotEmpty()) {
+                val updatedContact = EmergencyContact(name, phone, relationship)
+                if (isEditing) {
+                    contactAdapter.updateContact(updatedContact, position)
+                    Toast.makeText(this, "Updated: $name", Toast.LENGTH_SHORT).show()
                 } else {
-                    Toast.makeText(this, "Please fill in Name and Phone", Toast.LENGTH_SHORT).show()
+                    contactAdapter.addContact(updatedContact)
+                    Toast.makeText(this, "Added: $name", Toast.LENGTH_SHORT).show()
                 }
+                alertDialog.dismiss()
+            } else {
+                Toast.makeText(this, "Name and Phone are required", Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+        }
 
-        builder.show()
+        alertDialog.show()
     }
 }
