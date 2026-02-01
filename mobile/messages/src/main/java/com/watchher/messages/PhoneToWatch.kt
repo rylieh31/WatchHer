@@ -4,21 +4,13 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
 @Serializable
-data class WatchMessage(
-    val heartRateMean: Double,
-    val heartRateStd: Double,
-    val steps: Int,
-    val accelRms: Double,
-    val accelPeak: Double,
-    val ppg: Double,
-    val timeOfDay: Double
-) {
+data class PhoneToWatch(val confidencePercentage: Double) {
     fun encodeJson(): String {
         return Json.encodeToString(this)
     }
 
     companion object {
-        fun decodeJson(json: String): WatchMessage {
+        fun decodeJson(json: String): PhoneToWatch {
             return Json.decodeFromString(json)
         }
     }

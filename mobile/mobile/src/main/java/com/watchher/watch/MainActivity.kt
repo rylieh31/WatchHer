@@ -12,6 +12,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import com.google.android.gms.wearable.Wearable
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -24,6 +25,24 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        startService(Intent(this, HealthDataService::class.java))
+
+        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
+            for (node in nodes) {
+                Log.d("WatchHer", "Found node: ${node.displayName}")
+
+                Wearable.getMessageClient(this)
+                    .sendMessage(node.id, "/watch_her", "penis".toByteArray())
+                    .addOnSuccessListener {
+                        Log.d("WatchHer", "Message Sent!!!")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("WatchHer", "Failed to send message", e)
+                    }
+            }
+        }
+
 
         // Find the button we added in the XML
         val btnAddContact = findViewById<Button>(R.id.btn_open_add_contact)
@@ -43,7 +62,8 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("Save") { _, _ ->
                 val name = dialogView.findViewById<EditText>(R.id.dialog_et_name).text.toString()
                 val phone = dialogView.findViewById<EditText>(R.id.dialog_et_phone).text.toString()
-                val relationship = dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString()
+                val relationship =
+                    dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString()
 
                 if (name.isNotEmpty() && phone.isNotEmpty()) {
                     // For now, just show a message to prove it works
