@@ -5,6 +5,7 @@ import android.content.*
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -133,9 +134,15 @@ class MainActivity : ComponentActivity() {
                 context.startService(accelIntent)
             }
 
-            LaunchedEffect(Unit) {
-                val stepIntent = Intent(context, StepCounterService::class.java)
-                context.startService(stepIntent)
+            LaunchedEffect(hasPermission) {
+                if (hasPermission) {
+                    val stepIntent = Intent(context, StepCounterService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(stepIntent)
+                    } else {
+                        context.startService(stepIntent)
+                    }
+                }
             }
 
             DisposableEffect(lifecycleOwner) {
@@ -239,8 +246,13 @@ class MainActivity : ComponentActivity() {
 
             LaunchedEffect(Unit) {
                 var tick = 0
+                var nextSampleTime = SystemClock.elapsedRealtime()
                 while (true) {
-                    delay(1000)
+                    val now = SystemClock.elapsedRealtime()
+                    if (now < nextSampleTime) {
+                        delay(nextSampleTime - now)
+                    }
+                    nextSampleTime += 1000
 
                     val accelMag = sqrt(
                         accelX.toDouble().pow(2) +
@@ -299,7 +311,7 @@ class MainActivity : ComponentActivity() {
                                         accelPeak = accelPeak,
                                         ppgStd = ppgStd,
                                         timeOfDay = tod,
-                                        needsHelp = false
+                                        needsHelp = true
                                     )
                                     Wearable.getMessageClient(context)
                                         .sendMessage(

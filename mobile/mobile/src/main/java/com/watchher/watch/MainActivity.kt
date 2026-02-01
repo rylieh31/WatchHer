@@ -20,6 +20,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.wearable.Wearable
 import com.watchher.messages.PhoneToWatch
+import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -50,6 +51,38 @@ class MainActivity : AppCompatActivity() {
         val filter = IntentFilter(WatchReceiverService.ACTION_UPDATE_SAFETY_STATUS)
 
         registerReceiver(safetyStatusUpdateReceiver, filter, RECEIVER_NOT_EXPORTED)
+
+        val biometricsReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val hrMean = intent?.getDoubleExtra(WatchReceiverService.HR_MEAN, 0.0) ?: 0.0
+                val hrStd = intent?.getDoubleExtra(WatchReceiverService.HR_STD, 0.0) ?: 0.0
+                val hrSlope = intent?.getDoubleExtra(WatchReceiverService.HR_SLOPE, 0.0) ?: 0.0
+                val steps20s = intent?.getIntExtra(WatchReceiverService.STEPS_20S, 0) ?: 0
+                val accelRms =
+                    intent?.getDoubleExtra(WatchReceiverService.ACCEL_RMS, 0.0) ?: 0.0
+                val accelPeak =
+                    intent?.getDoubleExtra(WatchReceiverService.ACCEL_PEAK, 0.0) ?: 0.0
+                val ppgStd = intent?.getDoubleExtra(WatchReceiverService.PPG_STD, 0.0) ?: 0.0
+                val timeOfDay =
+                    intent?.getDoubleExtra(WatchReceiverService.TIME_OF_DAY, 0.0) ?: 0.0
+
+                val biometricsView: TextView = findViewById(R.id.tv_biometrics_values)
+                biometricsView.text = String.format(
+                    Locale.US,
+                    "HR mean: %.1f\nHR std: %.2f\nHR slope: %.2f\nSteps(20s): %d\nAccel RMS: %.2f\nAccel peak: %.2f\nPPG std: %.2f\nTime of day: %.2f",
+                    hrMean,
+                    hrStd,
+                    hrSlope,
+                    steps20s,
+                    accelRms,
+                    accelPeak,
+                    ppgStd,
+                    timeOfDay
+                )
+            }
+        }
+        val biometricsFilter = IntentFilter(WatchReceiverService.ACTION_UPDATE_BIOMETRICS)
+        registerReceiver(biometricsReceiver, biometricsFilter, RECEIVER_NOT_EXPORTED)
 
 
         startService(Intent(this, WatchReceiverService::class.java))

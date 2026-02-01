@@ -160,6 +160,17 @@
                     android:textColor="@color/gray"
                     android:textSize="16sp"
                     android:fontFamily="sans-serif" />
+
+                <TextView
+                    android:id="@+id/tv_biometrics_values"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:text="HR mean: --  \nHR std: --\nHR slope: --  \nSteps(20s): --\nAccel RMS: --  \nAccel peak: --\nPPG std: --  \nTime of day: --"
+                    android:textColor="@color/white"
+                    android:textSize="14sp"
+                    android:lineSpacingExtra="4dp"
+                    android:fontFamily="monospace" />
             </LinearLayout>
 
             <!-- Guard Mode Card -->
