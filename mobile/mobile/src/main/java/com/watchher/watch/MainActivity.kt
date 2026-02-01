@@ -26,6 +26,27 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        var channelClient: ChannelClient?
+
+        val nodeClient = Wearable.getNodeClient(this)
+        nodeClient.connectedNodes.addOnSuccessListener { nodes ->
+            for (node in nodes) {
+                Log.d("WEAR", "Found node: ${node.displayName} (${node.id})")
+
+                val nodeId = node.id
+                val path = "/watchher"
+
+                channelClient = Wearable.getChannelClient(this)
+                channelClient.openChannel(nodeId, path)
+                    .addOnSuccessListener { channel ->
+                        Log.d("WEAR", "Channel opened: ${channel.path}")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("WEAR", "Failed to open channel", e)
+                    }
+            }
+        }
+
         // Find the button we added in the XML
         val btnAddContact = findViewById<Button>(R.id.btn_open_add_contact)
 
@@ -56,26 +77,5 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
 
         builder.show()
-
-        var channelClient: ChannelClient?
-
-        val nodeClient = Wearable.getNodeClient(this)
-        nodeClient.connectedNodes.addOnSuccessListener { nodes ->
-            for (node in nodes) {
-                Log.d("WEAR", "Found node: ${node.displayName} (${node.id})")
-
-                val nodeId = node.id
-                val path = "/watchher"
-
-                channelClient = Wearable.getChannelClient(this)
-                channelClient.openChannel(nodeId, path)
-                .addOnSuccessListener { channel ->
-                    Log.d("WEAR", "Channel opened: ${channel.path}")
-                }
-                .addOnFailureListener { e ->
-                    Log.e("WEAR", "Failed to open channel", e)
-                }
-            }
-        }
     }
 }
