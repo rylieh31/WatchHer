@@ -18,10 +18,22 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import com.android.volley.Request
+import com.android.volley.RequestQueue
+import com.android.volley.Response
+import com.android.volley.toolbox.JsonObjectRequest
+import com.android.volley.toolbox.Volley
 import com.google.android.gms.wearable.Wearable
 import com.watchher.messages.PhoneToWatch
+import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
+    companion object {
+        private const val HELP_API_URL = "https://example.com"
+    }
+
+    private lateinit var requestQueue: RequestQueue
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -32,6 +44,8 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        requestQueue = Volley.newRequestQueue(this)
 
         val safetyStatusUpdateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -44,6 +58,8 @@ class MainActivity : AppCompatActivity() {
                 } else if (safetyStatus == "unsafe") {
                     textView.text = "IN DANGER"
                     textView.setTextColor(Color.rgb(255, 0, 0))
+
+                    sendHelpRequest()
                 }
             }
         }
@@ -107,5 +123,37 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton("Cancel", null)
 
         builder.show()
+    }
+
+    private fun sendHelpRequest() {
+        val jsonRequest = JsonObjectRequest(
+            Request.Method.POST,
+            "$HELP_API_URL/im-in-danger",
+            JSONObject(mapOf("username" to "Charlie")),
+            { response ->
+                Log.d("WatchHerMobile", "Received response: $response")
+            },
+            { e ->
+                Log.e("WatchHerMobile", "Error sending help message", e)
+            }
+        )
+
+        requestQueue.add(jsonRequest)
+    }
+
+    private fun sendNewContactRequest(name: String) {
+        val jsonRequest = JsonObjectRequest(
+            Request.Method.POST,
+            "$HELP_API_URL/add-contact",
+            JSONObject(mapOf("username" to "Charlie", "contact_name" to name)),
+            { response ->
+                Log.d("WatchHerMobile", "Received response: $response")
+            },
+            { e ->
+                Log.e("WatchHerMobile", "Error sending help message", e)
+            }
+        )
+
+        requestQueue.add(jsonRequest)
     }
 }
