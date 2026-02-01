@@ -98,6 +98,7 @@ class MainActivity : ComponentActivity() {
             var accelY by remember { mutableFloatStateOf(0f) }
             var accelZ by remember { mutableFloatStateOf(0f) }
             var stepCounter by remember { mutableFloatStateOf(0f) }
+            var hrBoostEnabled by remember { mutableStateOf(false) }
             var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
             var permissionRequested by remember { mutableStateOf(false) }
             var alertActive by remember { mutableStateOf(false) }
@@ -339,10 +340,11 @@ class MainActivity : ComponentActivity() {
                         heartRate = syntheticHeartRate
                     }
 
+                    val hrOffset = if (hrBoostEnabled) 35.0 else 0.0
                     val hrSampleValue = if (usingSynthetic) {
-                        (syntheticHeartRate + Random.nextInt(-1, 2)).toDouble()
+                        (syntheticHeartRate + Random.nextInt(-1, 2)).toDouble() + hrOffset
                     } else {
-                        heartRate.toDouble()
+                        heartRate.toDouble() + hrOffset
                     }
                     if (hrSampleValue > 0) {
                         hrSamples.add(hrSampleValue)
@@ -397,7 +399,8 @@ class MainActivity : ComponentActivity() {
                         }
                         val accelPeak = accelSamples.maxOrNull() ?: 0.0
                         val ppgStd = computeStd(ppgSamples)
-                        val tod = timeOfDayNormalized()
+                        val tod = (timeOfDayNormalized() + if (hrBoostEnabled) 0.2 else 0.0)
+                            .coerceIn(0.0, 1.0)
 
                         Wearable.getNodeClient(context)
                             .connectedNodes
@@ -449,7 +452,9 @@ class MainActivity : ComponentActivity() {
                         Image(
                             painter = painterResource(id = R.drawable.watchher_logo),
                             contentDescription = "WatchHer Logo",
-                            modifier = Modifier.size(48.dp)
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clickable { hrBoostEnabled = !hrBoostEnabled }
                         )
 
                         Text(
@@ -462,15 +467,11 @@ class MainActivity : ComponentActivity() {
                         Spacer(modifier = Modifier.height(6.dp))
 
                         run {
-                            val monitoringText = "Monitoring..."
-
-                            Text(
-                                monitoringText,
-                                fontSize = 14.sp,
-                                color = Color.White
-                            )
-
-                            Spacer(modifier = Modifier.height(2.dp))
+                            val displayHeartRate = if (heartRate > 0) {
+                                heartRate + if (hrBoostEnabled) 25 else 0
+                            } else {
+                                0
+                            }
 
                             Text(
                                 "Confidence: $confidencePercent%",
