@@ -50,6 +50,7 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(project(":messages"))
     implementation(libs.androidx.compose.material3)
+    implementation(libs.kotlinx.serialization.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)

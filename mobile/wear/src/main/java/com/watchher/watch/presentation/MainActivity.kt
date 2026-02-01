@@ -1,5 +1,6 @@
 package com.watchher.watch.presentation
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -24,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.watchher.watch.PhoneDataService
 import com.watchher.watch.R
 
 class MainActivity : ComponentActivity() {
@@ -163,5 +165,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
+        startService(Intent(this, PhoneDataService::class.java))
     }
 }

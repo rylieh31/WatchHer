@@ -12,12 +12,15 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.WatchHer">
         <service
-            android:name=".HealthDataService"
+            android:name=".WatchDataService"
             android:enabled="true"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
-                <data android:scheme="wear" android:host="*" android:pathPrefix="/watch_her" />
+                <data
+                    android:host="*"
+                    android:pathPrefix="/watch_her/watch_to_phone"
+                    android:scheme="wear" />
             </intent-filter>
         </service>
 
