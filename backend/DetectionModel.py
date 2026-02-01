@@ -1,17 +1,3 @@
-"""
-Model Inputs:
-- HR deviation from baseline
-- HR slope (Delta HR / second)
-- HRV (RMSSD)
-- HR / step ratio
-- Delta step
-- Step interval std
-- Respiration rate
-- Respiration irregularity
-- Respiration vs HR mismatch
-- Time of day
-"""
-
 from sklearn.ensemble import RandomForestClassifier
 import numpy as np
 
