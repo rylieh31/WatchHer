@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">WatchHer</string>
+    <string name="status">status</string>
+    <string name="ec">emergency contacts</string>
 </resources>

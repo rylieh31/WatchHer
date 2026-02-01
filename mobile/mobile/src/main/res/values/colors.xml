@@ -1,5 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
+    <color name="box">#1C1C1C</color>
+    <color name="box2">#303030</color>
+    <color name="switch_thumb_normal">#454545</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="pinktheme">#CA2D62</color>
+    <color name="light_grey">#D7D9D7</color>
+    <color name="gray">#C9C5CB</color>
+    <color name="dark_purple">#2E2A3A</color>
+    <color name="dark_purplev2">#B19CD7</color>
+    <color name="light_purple">#DDD5F3</color>
+    <color name="lightlight_purple">#EBE8FC</color>
+    <color name="light_green">#D8F7D3</color>
+
+    <!-- New Fun Colors -->
+    <color name="vibrant_pink">#FF69B4</color>
+    <color name="vibrant_purple">#9370DB</color>
+    <color name="neon_green">#39FF14</color>
+    <color name="accent_pink">#FF1493</color>
 </resources>

@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp"
+    android:background="@color/box">
+
+    <TextView
+        android:id="@+id/tv_dialog_title"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Add to Circle"
+        android:textColor="@color/white"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"
+        android:fontFamily="sans-serif-medium" />
+
+    <EditText
+        android:id="@+id/dialog_et_name"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Full Name"
+        android:textColor="@color/white"
+        android:textColorHint="@color/gray"
+        android:inputType="textPersonName"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@color/white" />
+
+    <EditText
+        android:id="@+id/dialog_et_phone"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Phone Number"
+        android:textColor="@color/white"
+        android:textColorHint="@color/gray"
+        android:inputType="phone"
+        android:layout_marginBottom="16dp"
+        android:backgroundTint="@color/white" />
+
+    <EditText
+        android:id="@+id/dialog_et_relationship"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="Relationship (e.g. Sister)"
+        android:textColor="@color/white"
+        android:textColorHint="@color/gray"
+        android:inputType="text"
+        android:layout_marginBottom="24dp"
+        android:backgroundTint="@color/white" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btn_dialog_delete"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Delete"
+            android:textColor="@color/pinktheme"
+            android:visibility="gone" />
+
+        <Space
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+
+        <Button
+            android:id="@+id/btn_dialog_cancel"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancel"
+            android:textColor="@color/light_purple" />
+
+        <Button
+            android:id="@+id/btn_dialog_save"
+            style="@style/Widget.AppCompat.Button.Borderless"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Save"
+            android:textColor="@color/light_purple" />
+    </LinearLayout>
+
+</LinearLayout>
