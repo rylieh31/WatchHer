@@ -38,14 +38,15 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import android.util.Log
 import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
-import com.watchher.watch.presentation.sensors.HeartRateReader
+import com.watchher.watch.sensors.AccelerometerService
+import com.watchher.watch.sensors.HeartRateService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
 
@@ -66,6 +67,9 @@ class MainActivity : ComponentActivity() {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     permissions.add(Manifest.permission.BODY_SENSORS_BACKGROUND)
                 }
+                if (Build.VERSION.SDK_INT >= 34) {
+                    permissions.add("android.permission.health.READ_HEART_RATE")
+                }
                 return permissions
             }
 
@@ -76,10 +80,12 @@ class MainActivity : ComponentActivity() {
             }
 
             var heartRate by remember { mutableIntStateOf(0) }
+            var accelX by remember { mutableFloatStateOf(0f) }
+            var accelY by remember { mutableFloatStateOf(0f) }
+            var accelZ by remember { mutableFloatStateOf(0f) }
             var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
             var permissionRequested by remember { mutableStateOf(false) }
             val lifecycleOwner = LocalLifecycleOwner.current
-            val heartRateReader = remember { HeartRateReader(context) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions()
@@ -96,6 +102,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
+            LaunchedEffect(hasPermission) {
+                if (hasPermission) {
+                    val hrServiceIntent = Intent(context, HeartRateService::class.java)
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        context.startForegroundService(hrServiceIntent)
+                    } else {
+                        context.startService(hrServiceIntent)
+                    }
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                val accelIntent = Intent(context, AccelerometerService::class.java)
+                context.startService(accelIntent)
+            }
+
             DisposableEffect(lifecycleOwner) {
                 val observer = LifecycleEventObserver { _, event ->
                     if (event == Lifecycle.Event.ON_RESUME) {
@@ -108,33 +130,48 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            LaunchedEffect(hasPermission) {
-                if (hasPermission) {
-                    heartRateReader.heartRateFlow().collectLatest { newHeartRate ->
-                        heartRate = newHeartRate
-                    }
-                }
-            }
-
             // Receive heart rate updates
             DisposableEffect(Unit) {
                 val receiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
-                        val newHeartRate =
-                            intent?.getIntExtra(PhoneReceiverService.EXTRA_HEART_RATE, 0)
+                        val newHeartRate = intent?.getIntExtra(
+                            HeartRateService.EXTRA_HEART_RATE,
+                            0
+                        )
                         if (newHeartRate != null && newHeartRate > 0) {
+                            Log.d("MainActivity", "HR update: $newHeartRate")
                             heartRate = newHeartRate
                         }
                     }
                 }
 
-                val filter = IntentFilter(PhoneReceiverService.ACTION_HEART_RATE_UPDATE)
+                val filter = IntentFilter(HeartRateService.ACTION_HEART_RATE_SENSOR_UPDATE)
                 LocalBroadcastManager.getInstance(context)
                     .registerReceiver(receiver, filter)
 
                 onDispose {
                     LocalBroadcastManager.getInstance(context)
                         .unregisterReceiver(receiver)
+                }
+            }
+
+            // Receive accelerometer updates
+            DisposableEffect(Unit) {
+                val accelReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        accelX = intent?.getFloatExtra(AccelerometerService.EXTRA_AX, 0f) ?: 0f
+                        accelY = intent?.getFloatExtra(AccelerometerService.EXTRA_AY, 0f) ?: 0f
+                        accelZ = intent?.getFloatExtra(AccelerometerService.EXTRA_AZ, 0f) ?: 0f
+                    }
+                }
+
+                val filter = IntentFilter(AccelerometerService.ACTION_ACCEL_UPDATE)
+                LocalBroadcastManager.getInstance(context)
+                    .registerReceiver(accelReceiver, filter)
+
+                onDispose {
+                    LocalBroadcastManager.getInstance(context)
+                        .unregisterReceiver(accelReceiver)
                 }
             }
 
@@ -177,6 +214,14 @@ class MainActivity : ComponentActivity() {
                             Text(
                                 monitoringText,
                                 fontSize = 14.sp,
+                                color = Color.White
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            Text(
+                                "Accel: %.2f, %.2f, %.2f".format(accelX, accelY, accelZ),
+                                fontSize = 12.sp,
                                 color = Color.White
                             )
 
