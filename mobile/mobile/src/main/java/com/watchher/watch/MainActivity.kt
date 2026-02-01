@@ -30,10 +30,11 @@ import org.json.JSONObject
 
 class MainActivity : AppCompatActivity() {
     companion object {
-        private const val HELP_API_URL = "https://example.com"
+        private const val HELP_API_URL = "http://192.168.86.43:8080"
     }
 
     private lateinit var requestQueue: RequestQueue
+    private var lastSafetyStatus: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -59,8 +60,12 @@ class MainActivity : AppCompatActivity() {
                 } else if (safetyStatus == "unsafe") {
                     textView.text = "IN DANGER"
                     textView.setTextColor(Color.rgb(255, 0, 0))
-
-                    sendHelpRequest()
+                    if (lastSafetyStatus != "unsafe") {
+                        sendHelpRequest()
+                    }
+                }
+                if (safetyStatus == "safe" || safetyStatus == "unsafe") {
+                    lastSafetyStatus = safetyStatus
                 }
             }
         }

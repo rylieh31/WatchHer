@@ -125,7 +125,7 @@ def create_app() -> Flask:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="WatchHer Flask backend")
 
-    parser.add_argument("--host", default="localhost", help="Bind address (default: %(default)s)")
+    parser.add_argument("--host", default="0.0.0.0", help="Bind address (default: %(default)s)")
     parser.add_argument("--port", type=int, default=8080, help="Bind port (default: %(default)s)")
 
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
