@@ -8,13 +8,13 @@ import com.watchher.messages.PhoneToWatch
 
 class PhoneReceiverService : WearableListenerService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("WatchHer", "PhoneReceiverService started")
+        Log.d("PhoneReceiverService", "PhoneReceiverService started")
         return super.onStartCommand(intent, flags, startId)
     }
 
     override fun onMessageReceived(message: MessageEvent) {
-        val phoneToWatch = PhoneToWatch.decodeJson(message.data.toString())
-        Log.d("WatchHer", "Received message: $phoneToWatch")
+        val phoneToWatch = PhoneToWatch.decodeJson(String(message.data))
+        Log.d("PhoneReceiverService", "Received message: $phoneToWatch")
 
         // todo: send to UI
     }
