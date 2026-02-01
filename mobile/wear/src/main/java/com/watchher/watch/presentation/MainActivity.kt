@@ -3,13 +3,11 @@ package com.watchher.watch.presentation
 import android.Manifest
 import android.content.*
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -32,18 +30,22 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
+import com.watchher.watch.presentation.sensors.HeartRateReader
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 class MainActivity : ComponentActivity() {
 
@@ -56,20 +58,33 @@ class MainActivity : ComponentActivity() {
             val watchHerGreen = Color(0xFF32CD32)
             val context = LocalContext.current
 
-            fun hasBodySensorPermission(): Boolean {
-                return context.checkSelfPermission(
-                    Manifest.permission.BODY_SENSORS
-                ) == PackageManager.PERMISSION_GRANTED
+            fun requiredPermissions(): List<String> {
+                val permissions = mutableListOf(
+                    Manifest.permission.BODY_SENSORS,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                )
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    permissions.add(Manifest.permission.BODY_SENSORS_BACKGROUND)
+                }
+                return permissions
+            }
+
+            fun hasAllPermissions(): Boolean {
+                return requiredPermissions().all { permission ->
+                    context.checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+                }
             }
 
             var heartRate by remember { mutableIntStateOf(0) }
-            var hasPermission by remember { mutableStateOf(hasBodySensorPermission()) }
+            var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
             var permissionRequested by remember { mutableStateOf(false) }
+            val lifecycleOwner = LocalLifecycleOwner.current
+            val heartRateReader = remember { HeartRateReader(context) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.RequestPermission()
-            ) { granted ->
-                hasPermission = granted
+                ActivityResultContracts.RequestMultiplePermissions()
+            ) { results ->
+                hasPermission = results.values.all { it }
                 permissionRequested = true
             }
 
@@ -77,7 +92,27 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(hasPermission) {
                 if (!hasPermission && !permissionRequested) {
                     permissionRequested = true
-                    permissionLauncher.launch(Manifest.permission.BODY_SENSORS)
+                    permissionLauncher.launch(requiredPermissions().toTypedArray())
+                }
+            }
+
+            DisposableEffect(lifecycleOwner) {
+                val observer = LifecycleEventObserver { _, event ->
+                    if (event == Lifecycle.Event.ON_RESUME) {
+                        hasPermission = hasAllPermissions()
+                    }
+                }
+                lifecycleOwner.lifecycle.addObserver(observer)
+                onDispose {
+                    lifecycleOwner.lifecycle.removeObserver(observer)
+                }
+            }
+
+            LaunchedEffect(hasPermission) {
+                if (hasPermission) {
+                    heartRateReader.heartRateFlow().collectLatest { newHeartRate ->
+                        heartRate = newHeartRate
+                    }
                 }
             }
 
@@ -135,57 +170,9 @@ class MainActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        if (!hasPermission && permissionRequested) {
-
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "Permission Required",
-                                    color = watchHerPink,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 16.sp
-                                )
-
-                                Spacer(Modifier.height(4.dp))
-
-                                Text(
-                                    "Heart rate access is required for WatchHer to function.",
-                                    color = Color.White,
-                                    textAlign = TextAlign.Center,
-                                    fontSize = 12.sp
-                                )
-
-                                Spacer(Modifier.height(8.dp))
-
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(50.dp))
-                                        .background(Color(0xFF2E2E2E))
-                                        .clickable {
-                                            val intent =
-                                                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
-                                            intent.data = Uri.fromParts(
-                                                "package",
-                                                context.packageName,
-                                                null
-                                            )
-                                            context.startActivity(intent)
-                                        }
-                                        .padding(horizontal = 32.dp, vertical = 10.dp)
-                                ) {
-                                    Text(
-                                        "Open Settings",
-                                        color = Color.White,
-                                        fontSize = 14.sp
-                                    )
-                                }
-                            }
-
-                        } else {
+                        run {
                             val monitoringText =
-                                if (heartRate > 0) "$heartRate BPM" else "Monitoring..."
+                                if (heartRate > 0) "Monitoring... $heartRate BPM" else "Monitoring..."
 
                             Text(
                                 monitoringText,
