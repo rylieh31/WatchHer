@@ -26,14 +26,14 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        startService(Intent(this, HealthDataService::class.java))
+        startService(Intent(this, WatchDataService::class.java))
 
         Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
             for (node in nodes) {
                 Log.d("WatchHer", "Found node: ${node.displayName}")
 
                 Wearable.getMessageClient(this)
-                    .sendMessage(node.id, "/watch_her", "penis".toByteArray())
+                    .sendMessage(node.id, "/watch_her/phone_to_watch", "penis".toByteArray())
                     .addOnSuccessListener {
                         Log.d("WatchHer", "Message Sent!!!")
                     }
