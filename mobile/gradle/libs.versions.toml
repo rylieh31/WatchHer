@@ -21,6 +21,7 @@ material3 = "1.4.0"
 kotlinSerialization = "2.2.0"
 jetbrainsKotlinJvm = "2.2.10"
 kotlinxSerializationJson = "1.9.0"
+volley = "1.2.1"
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
 androidx-health-services-client = { module = "androidx.health:health-services-client", version.ref = "healthServicesClient" }
@@ -47,6 +48,7 @@ androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscree
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
 kotlin-serialization = { group = "org.jetbrains.kotlin", name = "kotlin-serialization", version.ref = "kotlinSerialization" }
 kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version = "1.10.0" }
+volley = { group = "com.android.volley", name = "volley", version.ref = "volley" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

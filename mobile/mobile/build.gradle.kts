@@ -42,6 +42,7 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(project(":messages"))
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.volley)
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
