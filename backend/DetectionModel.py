@@ -36,56 +36,60 @@ class DetectionModel:
         self.model.fit(X_train, y_train)
 
 
+# Synthetic samples
+# synthetic_samples = [
+#     90,
+
 
 # Example with only two features
 
-TEST_FEATURES = {
-    "hr_mean",
-    "steps_20s"
-}
+# TEST_FEATURES = {
+#     "hr_mean",
+#     "steps_20s"
+# }
 
-# Low hr is 60 +- 10 bpm
-# High hr is 100 +- 10 bpm
+# # Low hr is 60 +- 10 bpm
+# # High hr is 100 +- 10 bpm
 
-# Low steps is 3 +- 2 steps per 20s
-# High steps is 15 +- 5 steps per 20s
+# # Low steps is 3 +- 2 steps per 20s
+# # High steps is 15 +- 5 steps per 20s
 
-low_hr_low_steps = [
-    np.random.normal(70, 5, 100),
-    np.random.normal(5, 2, 100),
-]
-low_hr_low_steps_matrix = np.column_stack(low_hr_low_steps)
+# low_hr_low_steps = [
+#     np.random.normal(70, 5, 100),
+#     np.random.normal(5, 2, 100),
+# ]
+# low_hr_low_steps_matrix = np.column_stack(low_hr_low_steps)
 
-high_hr_high_steps = [
-    np.random.normal(100, 10, 100),
-    np.random.normal(20, 5, 100),
-]
-high_hr_high_steps_matrix = np.column_stack(high_hr_high_steps)
+# high_hr_high_steps = [
+#     np.random.normal(100, 10, 100),
+#     np.random.normal(20, 5, 100),
+# ]
+# high_hr_high_steps_matrix = np.column_stack(high_hr_high_steps)
 
-high_hr_low_steps = [
-    np.random.normal(90, 8, 100),
-    np.random.normal(2, 1, 100),
-]
-high_hr_low_steps_matrix = np.column_stack(high_hr_low_steps)
+# high_hr_low_steps = [
+#     np.random.normal(90, 8, 100),
+#     np.random.normal(2, 1, 100),
+# ]
+# high_hr_low_steps_matrix = np.column_stack(high_hr_low_steps)
 
-low_hr_high_steps = [
-    np.random.normal(65, 5, 100),
-    np.random.normal(15, 4, 100),
-]
-low_hr_high_steps_matrix = np.column_stack(low_hr_high_steps)
+# low_hr_high_steps = [
+#     np.random.normal(65, 5, 100),
+#     np.random.normal(15, 4, 100),
+# ]
+# low_hr_high_steps_matrix = np.column_stack(low_hr_high_steps)
 
-X_train = np.vstack([
-    high_hr_low_steps_matrix,
-    low_hr_high_steps_matrix,
-    low_hr_low_steps_matrix,
-    high_hr_high_steps_matrix,
-])
-y_train = [1] * 100 + [0] * 300
+# X_train = np.vstack([
+#     high_hr_low_steps_matrix,
+#     low_hr_high_steps_matrix,
+#     low_hr_low_steps_matrix,
+#     high_hr_high_steps_matrix,
+# ])
+# y_train = [1] * 100 + [0] * 300
 
-model = DetectionModel()
-model.train(X_train, y_train)
+# model = DetectionModel()
+# model.train(X_train, y_train)
 
-test_feature = [ 70, 5 ]
+# test_feature = [ 90, 5 ]
 
-confidence = model.predict(test_feature)
-print(f"Anomaly confidence: {confidence:.4f}")
+# confidence = model.predict(test_feature)
+# print(f"Anomaly confidence: {confidence:.4f}")
