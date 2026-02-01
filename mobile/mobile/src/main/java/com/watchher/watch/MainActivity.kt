@@ -19,6 +19,8 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.android.volley.Request
 import com.android.volley.RequestQueue
 import com.android.volley.Response
@@ -36,6 +38,8 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var requestQueue: RequestQueue
     private var lastSafetyStatus: String? = null
+    private lateinit var contactAdapter: ContactAdapter
+    private val contacts = mutableListOf<EmergencyContact>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -49,6 +53,11 @@ class MainActivity : AppCompatActivity() {
         }
 
         requestQueue = Volley.newRequestQueue(this)
+
+        val contactsList: RecyclerView = findViewById(R.id.rv_contacts)
+        contactAdapter = ContactAdapter(contacts) { _, _ -> }
+        contactsList.layoutManager = LinearLayoutManager(this)
+        contactsList.adapter = contactAdapter
 
         val safetyStatusUpdateReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
@@ -170,8 +179,16 @@ class MainActivity : AppCompatActivity() {
                     dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString()
 
                 if (name.isNotEmpty() && phone.isNotEmpty()) {
-                    // For now, just show a message to prove it works
-                    Toast.makeText(this, "Saved: $name", Toast.LENGTH_SHORT).show()
+                    sendNewContactRequest(name) {
+                        contactAdapter.addContact(
+                            EmergencyContact(
+                                name = name,
+                                phone = phone,
+                                relationship = relationship
+                            )
+                        )
+                        Toast.makeText(this, "Saved: $name", Toast.LENGTH_SHORT).show()
+                    }
                 } else {
                     Toast.makeText(this, "Please fill in Name and Phone", Toast.LENGTH_SHORT).show()
                 }
@@ -197,16 +214,18 @@ class MainActivity : AppCompatActivity() {
         requestQueue.add(jsonRequest)
     }
 
-    private fun sendNewContactRequest(name: String) {
+    private fun sendNewContactRequest(name: String, onSuccess: () -> Unit) {
         val jsonRequest = JsonObjectRequest(
             Request.Method.POST,
             "$HELP_API_URL/add-contact",
             JSONObject(mapOf("username" to "Charlie", "contact_name" to name)),
             { response ->
                 Log.d("WatchHerMobile", "Received response: $response")
+                onSuccess()
             },
             { e ->
                 Log.e("WatchHerMobile", "Error sending help message", e)
+                Toast.makeText(this, "Failed to add contact", Toast.LENGTH_SHORT).show()
             }
         )
 
