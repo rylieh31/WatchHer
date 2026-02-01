@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="black">#FF000000</color>
+    <color name="box">#1C1C1C</color>
+    <color name="box2">#303030</color>
+    <color name="switch_thumb_normal">#454545</color>
     <color name="white">#FFFFFFFF</color>
+    <color name="pinktheme">#CA2D62</color>
     <color name="light_grey">#D7D9D7</color>
     <color name="gray">#C9C5CB</color>
     <color name="dark_purple">#2E2A3A</color>
