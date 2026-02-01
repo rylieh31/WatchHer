@@ -1,17 +1,23 @@
 package com.watchher.watch
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
+import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.wearable.Wearable
 import com.watchher.messages.PhoneToWatch
 
@@ -26,6 +32,25 @@ class MainActivity : AppCompatActivity() {
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
             insets
         }
+
+        val safetyStatusUpdateReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val safetyStatus = intent?.getStringExtra(WatchReceiverService.SAFETY_STATUS)
+                Log.d("WatchHerMobile", "Received broadcast: $safetyStatus")
+                val textView: TextView = findViewById(R.id.tv_status_value)
+                if (safetyStatus == "safe") {
+                    textView.text = "SAFE"
+                    textView.setTextColor(resources.getColor(R.color.neon_green))
+                } else if (safetyStatus == "unsafe") {
+                    textView.text = "IN DANGER"
+                    textView.setTextColor(Color.rgb(255, 0, 0))
+                }
+            }
+        }
+        val filter = IntentFilter(WatchReceiverService.ACTION_UPDATE_SAFETY_STATUS)
+
+        registerReceiver(safetyStatusUpdateReceiver, filter, RECEIVER_NOT_EXPORTED)
+
 
         startService(Intent(this, WatchReceiverService::class.java))
 

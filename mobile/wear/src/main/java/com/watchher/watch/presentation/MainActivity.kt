@@ -9,6 +9,7 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -37,6 +38,8 @@ import androidx.compose.ui.unit.sp
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
+import com.google.android.gms.wearable.Wearable
+import com.watchher.messages.WatchToPhone
 import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
 import kotlinx.coroutines.Job
@@ -276,5 +279,35 @@ class MainActivity : ComponentActivity() {
         }
 
         startService(Intent(this, PhoneReceiverService::class.java))
+
+        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
+            for (node in nodes) {
+                Log.d("WatchHerWear", "Found node: ${node.displayName}")
+
+                val data = WatchToPhone(
+                    accelPeak = 10.0,
+                    accelRms = 2.0,
+                    heartRateMean = 5.0,
+                    heartRateStd = 2.5,
+                    needsHelp = true,
+                    ppg = 11.11,
+                    steps = 25,
+                    timeOfDay = 0.78
+                )
+
+                Wearable.getMessageClient(this)
+                    .sendMessage(
+                        node.id,
+                        "/watch_her/watch_to_phone",
+                        data.encodeJson().toByteArray()
+                    )
+                    .addOnSuccessListener {
+                        Log.d("WatchHerWear", "Message Sent!!!")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e("WatchHerWear", "Failed to send message", e)
+                    }
+            }
+        }
     }
 }
