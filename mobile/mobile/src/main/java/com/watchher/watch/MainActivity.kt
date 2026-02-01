@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -104,6 +105,23 @@ class MainActivity : AppCompatActivity() {
         }
         val biometricsFilter = IntentFilter(WatchReceiverService.ACTION_UPDATE_BIOMETRICS)
         registerReceiver(biometricsReceiver, biometricsFilter, RECEIVER_NOT_EXPORTED)
+
+        val confidenceReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                val confidence = intent?.getIntExtra(
+                    WatchReceiverService.EXTRA_CONFIDENCE,
+                    0
+                ) ?: 0
+
+                val progressBar: ProgressBar = findViewById(R.id.pb_danger)
+                val percentText: TextView = findViewById(R.id.tv_danger_percent)
+
+                progressBar.progress = confidence.coerceIn(0, 100)
+                percentText.text = "${confidence.coerceIn(0, 100)}%"
+            }
+        }
+        val confidenceFilter = IntentFilter(WatchReceiverService.ACTION_CONFIDENCE_UPDATE)
+        registerReceiver(confidenceReceiver, confidenceFilter, RECEIVER_NOT_EXPORTED)
 
 
         startService(Intent(this, WatchReceiverService::class.java))

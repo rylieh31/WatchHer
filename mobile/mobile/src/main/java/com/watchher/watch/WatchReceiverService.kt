@@ -3,14 +3,19 @@ package com.watchher.watch
 import android.content.Intent
 import android.util.Log
 import com.google.android.gms.wearable.MessageEvent
+import com.google.android.gms.wearable.Wearable
 import com.google.android.gms.wearable.WearableListenerService
 
 import com.watchher.messages.WatchToPhone
+import com.watchher.messages.PhoneToWatch
+import kotlin.random.Random
 
 class WatchReceiverService : WearableListenerService() {
     companion object {
         const val ACTION_UPDATE_SAFETY_STATUS = "com.watchher.watch.ACTION_UPDATE_SAFETY_STATUS"
         const val ACTION_UPDATE_BIOMETRICS = "com.watchher.watch.ACTION_UPDATE_BIOMETRICS"
+        const val ACTION_CONFIDENCE_UPDATE = "com.watchher.watch.HEART_RATE_UPDATE"
+        const val EXTRA_CONFIDENCE = "com.watchher.watch.EXTRA_HEART_RATE"
         const val SAFETY_STATUS = "com.watchher.watch.SAFETY_STATUS"
         const val HR_MEAN = "com.watchher.watch.HR_MEAN"
         const val HR_STD = "com.watchher.watch.HR_STD"
@@ -32,6 +37,8 @@ class WatchReceiverService : WearableListenerService() {
         val watchData = WatchToPhone.decodeJson(String(message.data))
         Log.d("WatchReceiverService", "Received message: $watchData")
 
+        val confidence = Random.nextInt(0, 101)
+
         // todo: process with Java API
         // todo: send cry for help if needed
 
@@ -47,6 +54,14 @@ class WatchReceiverService : WearableListenerService() {
         }
         sendBroadcast(mobileUiUpdateIntent)
 
+        val confidenceIntent = Intent(ACTION_CONFIDENCE_UPDATE).apply {
+            putExtra(EXTRA_CONFIDENCE, confidence)
+            setPackage(PACKAGE)
+        }
+        sendBroadcast(confidenceIntent)
+
+        sendConfidenceToWatch(confidence)
+
         val biometricsIntent = Intent(ACTION_UPDATE_BIOMETRICS).apply {
             putExtra(HR_MEAN, watchData.hrMean)
             putExtra(HR_STD, watchData.hrStd)
@@ -59,5 +74,21 @@ class WatchReceiverService : WearableListenerService() {
             setPackage(PACKAGE)
         }
         sendBroadcast(biometricsIntent)
+    }
+
+    private fun sendConfidenceToWatch(confidence: Int) {
+        Wearable.getNodeClient(this)
+            .connectedNodes
+            .addOnSuccessListener { nodes ->
+                nodes.forEach { node ->
+                    val data = PhoneToWatch(confidence.toDouble())
+                    Wearable.getMessageClient(this)
+                        .sendMessage(
+                            node.id,
+                            "/watch_her/phone_to_watch",
+                            data.encodeJson().toByteArray()
+                        )
+                }
+            }
     }
 }

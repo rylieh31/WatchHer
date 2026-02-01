@@ -89,12 +89,16 @@ class MainActivity : ComponentActivity() {
             }
 
             var heartRate by remember { mutableIntStateOf(0) }
+            var confidencePercent by remember { mutableIntStateOf(0) }
+            var cooldownUntilMs by remember { mutableLongStateOf(0L) }
             var accelX by remember { mutableFloatStateOf(0f) }
             var accelY by remember { mutableFloatStateOf(0f) }
             var accelZ by remember { mutableFloatStateOf(0f) }
             var stepCounter by remember { mutableFloatStateOf(0f) }
             var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
             var permissionRequested by remember { mutableStateOf(false) }
+            var alertActive by remember { mutableStateOf(false) }
+            var alertSent by remember { mutableStateOf(false) }
             val lifecycleOwner = LocalLifecycleOwner.current
 
             val hrSamples = remember { mutableStateListOf<Double>() }
@@ -157,7 +161,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
 
-            // Receive heart rate updates
+            // Receive heart rate updates from sensor
             DisposableEffect(Unit) {
                 val receiver = object : BroadcastReceiver() {
                     override fun onReceive(context: Context?, intent: Intent?) {
@@ -179,6 +183,51 @@ class MainActivity : ComponentActivity() {
                 onDispose {
                     LocalBroadcastManager.getInstance(context)
                         .unregisterReceiver(receiver)
+                }
+            }
+
+            // Receive confidence updates from phone
+            DisposableEffect(Unit) {
+                val confidenceReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        val rawConfidence = intent?.getDoubleExtra(
+                            PhoneReceiverService.EXTRA_HEART_RATE,
+                            -1.0
+                        ) ?: -1.0
+                        if (rawConfidence >= 0) {
+                            val percent = if (rawConfidence <= 1.0) {
+                                (rawConfidence * 100.0)
+                            } else {
+                                rawConfidence
+                            }
+                            confidencePercent = percent.toInt().coerceIn(0, 100)
+                        }
+                    }
+                }
+
+                val filter = IntentFilter(PhoneReceiverService.ACTION_HEART_RATE_UPDATE)
+                LocalBroadcastManager.getInstance(context)
+                    .registerReceiver(confidenceReceiver, filter)
+
+                onDispose {
+                    LocalBroadcastManager.getInstance(context)
+                        .unregisterReceiver(confidenceReceiver)
+                }
+            }
+
+            LaunchedEffect(confidencePercent, alertSent, alertActive, cooldownUntilMs) {
+                val now = SystemClock.elapsedRealtime()
+                if (
+                    confidencePercent > 60 &&
+                    !alertActive &&
+                    !alertSent &&
+                    now >= cooldownUntilMs
+                ) {
+                    alertActive = true
+                } else if (confidencePercent <= 60 && (alertActive || alertSent)) {
+                    alertActive = false
+                    alertSent = false
+                    cooldownUntilMs = now + 30_000L
                 }
             }
 
@@ -282,7 +331,7 @@ class MainActivity : ComponentActivity() {
                     while (stepDeltas.size > 20) stepDeltas.removeAt(0)
 
                     tick += 1
-                    if (tick % 5 == 0) {
+                    if (tick % 10 == 0) {
                         val hrMean = if (hrSamples.isEmpty()) 0.0 else hrSamples.average()
                         val hrStd = computeRmssd(hrSamples)
                         val hrSlope = if (hrSamples.size >= 2) {
@@ -311,7 +360,7 @@ class MainActivity : ComponentActivity() {
                                         accelPeak = accelPeak,
                                         ppgStd = ppgStd,
                                         timeOfDay = tod,
-                                        needsHelp = true
+                                        needsHelp = alertSent
                                     )
                                     Wearable.getMessageClient(context)
                                         .sendMessage(
@@ -345,9 +394,6 @@ class MainActivity : ComponentActivity() {
                         modifier = Modifier.padding(12.dp)
                     ) {
 
-                        var alertActive by remember { mutableStateOf(true) }
-                        var alertSent by remember { mutableStateOf(false) }
-
                         Image(
                             painter = painterResource(id = R.drawable.watchher_logo),
                             contentDescription = "WatchHer Logo",
@@ -376,15 +422,14 @@ class MainActivity : ComponentActivity() {
                             Spacer(modifier = Modifier.height(2.dp))
 
                             Text(
-                                "Accel: %.2f, %.2f, %.2f".format(accelX, accelY, accelZ),
+                                "Confidence: $confidencePercent%",
                                 fontSize = 12.sp,
                                 color = Color.White
                             )
 
                             Spacer(modifier = Modifier.height(2.dp))
 
-                            val hrProgress =
-                                ((heartRate - 50f) / 130f).coerceIn(0f, 1f)
+                            val confidenceProgress = (confidencePercent / 100f)
 
                             Box(
                                 modifier = Modifier
@@ -396,7 +441,7 @@ class MainActivity : ComponentActivity() {
                                 Box(
                                     modifier = Modifier
                                         .fillMaxHeight()
-                                        .fillMaxWidth(hrProgress)
+                                        .fillMaxWidth(confidenceProgress)
                                         .background(watchHerGreen)
                                 )
                             }
@@ -423,6 +468,7 @@ class MainActivity : ComponentActivity() {
 
                                 LaunchedEffect(alertActive) {
                                     if (alertActive) {
+                                        progress.snapTo(0f)
                                         val vibrationJob: Job = launch {
                                             while (isActive) {
                                                 vibrator.vibrate(
@@ -471,6 +517,8 @@ class MainActivity : ComponentActivity() {
                                         .clickable {
                                             alertActive = false
                                             alertSent = false
+                                            cooldownUntilMs =
+                                                SystemClock.elapsedRealtime() + 15_000L
                                         }
                                         .drawWithContent {
                                             drawContent()
