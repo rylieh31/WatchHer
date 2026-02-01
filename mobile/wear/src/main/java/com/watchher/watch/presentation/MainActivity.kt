@@ -9,7 +9,6 @@ import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
 import android.provider.Settings
-import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -47,10 +46,15 @@ import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
 import com.watchher.watch.sensors.AccelerometerService
 import com.watchher.watch.sensors.HeartRateService
+import com.watchher.watch.sensors.StepCounterService
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.sqrt
+import kotlin.math.pow
+import java.time.LocalTime
+import java.time.ZoneId
 
 class MainActivity : ComponentActivity() {
 
@@ -87,9 +91,16 @@ class MainActivity : ComponentActivity() {
             var accelX by remember { mutableFloatStateOf(0f) }
             var accelY by remember { mutableFloatStateOf(0f) }
             var accelZ by remember { mutableFloatStateOf(0f) }
+            var stepCounter by remember { mutableFloatStateOf(0f) }
             var hasPermission by remember { mutableStateOf(hasAllPermissions()) }
             var permissionRequested by remember { mutableStateOf(false) }
             val lifecycleOwner = LocalLifecycleOwner.current
+
+            val hrSamples = remember { mutableStateListOf<Double>() }
+            val accelSamples = remember { mutableStateListOf<Double>() }
+            val ppgSamples = remember { mutableStateListOf<Double>() }
+            val stepDeltas = remember { mutableStateListOf<Int>() }
+            var lastStepCounter by remember { mutableStateOf<Float?>(null) }
 
             val permissionLauncher = rememberLauncherForActivityResult(
                 ActivityResultContracts.RequestMultiplePermissions()
@@ -120,6 +131,11 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(Unit) {
                 val accelIntent = Intent(context, AccelerometerService::class.java)
                 context.startService(accelIntent)
+            }
+
+            LaunchedEffect(Unit) {
+                val stepIntent = Intent(context, StepCounterService::class.java)
+                context.startService(stepIntent)
             }
 
             DisposableEffect(lifecycleOwner) {
@@ -176,6 +192,130 @@ class MainActivity : ComponentActivity() {
                 onDispose {
                     LocalBroadcastManager.getInstance(context)
                         .unregisterReceiver(accelReceiver)
+                }
+            }
+
+            // Receive step counter updates
+            DisposableEffect(Unit) {
+                val stepReceiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        stepCounter = intent?.getFloatExtra(
+                            StepCounterService.EXTRA_STEP_COUNT,
+                            0f
+                        ) ?: 0f
+                    }
+                }
+
+                val filter = IntentFilter(StepCounterService.ACTION_STEP_UPDATE)
+                LocalBroadcastManager.getInstance(context)
+                    .registerReceiver(stepReceiver, filter)
+
+                onDispose {
+                    LocalBroadcastManager.getInstance(context)
+                        .unregisterReceiver(stepReceiver)
+                }
+            }
+
+            fun computeRmssd(samples: List<Double>): Double {
+                if (samples.size < 2) return 0.0
+                val diffs = samples.zipWithNext { a, b -> (b - a).pow(2) }
+                return sqrt(diffs.average())
+            }
+
+            fun computeStd(samples: List<Double>): Double {
+                if (samples.isEmpty()) return 0.0
+                val mean = samples.average()
+                val variance = samples.map { (it - mean).pow(2) }.average()
+                return sqrt(variance)
+            }
+
+            fun timeOfDayNormalized(): Double {
+                val now = LocalTime.now(ZoneId.systemDefault())
+                val seconds = now.toSecondOfDay().toDouble()
+                val anchor = 2 * 3600 + 30 * 60 // 2:30 a.m.
+                val shifted = (seconds - anchor + 86400) % 86400
+                return 1.0 - (shifted / 86400.0)
+            }
+
+            LaunchedEffect(Unit) {
+                var tick = 0
+                while (true) {
+                    delay(1000)
+
+                    val accelMag = sqrt(
+                        accelX.toDouble().pow(2) +
+                            accelY.toDouble().pow(2) +
+                            accelZ.toDouble().pow(2)
+                    )
+                    accelSamples.add(accelMag)
+
+                    val hrValue = heartRate.toDouble()
+                    if (hrValue > 0) {
+                        hrSamples.add(hrValue)
+                        ppgSamples.add(hrValue)
+                    }
+
+                    val last = lastStepCounter
+                    val delta = if (last != null) {
+                        (stepCounter - last).coerceAtLeast(0f).toInt()
+                    } else {
+                        0
+                    }
+                    stepDeltas.add(delta)
+                    lastStepCounter = stepCounter
+
+                    while (hrSamples.size > 20) hrSamples.removeAt(0)
+                    while (accelSamples.size > 20) accelSamples.removeAt(0)
+                    while (ppgSamples.size > 20) ppgSamples.removeAt(0)
+                    while (stepDeltas.size > 20) stepDeltas.removeAt(0)
+
+                    tick += 1
+                    if (tick % 5 == 0) {
+                        val hrMean = if (hrSamples.isEmpty()) 0.0 else hrSamples.average()
+                        val hrStd = computeRmssd(hrSamples)
+                        val hrSlope = if (hrSamples.size >= 2) {
+                            (hrSamples.last() - hrSamples.first()) / (hrSamples.size - 1)
+                        } else {
+                            0.0
+                        }
+                        val steps20s = stepDeltas.sum()
+                        val accelRms = if (accelSamples.isEmpty()) 0.0 else {
+                            sqrt(accelSamples.map { it * it }.average())
+                        }
+                        val accelPeak = accelSamples.maxOrNull() ?: 0.0
+                        val ppgStd = computeStd(ppgSamples)
+                        val tod = timeOfDayNormalized()
+
+                        Wearable.getNodeClient(context)
+                            .connectedNodes
+                            .addOnSuccessListener { nodes ->
+                                nodes.forEach { node ->
+                                    val payload = WatchToPhone(
+                                        hrMean = hrMean,
+                                        hrStd = hrStd,
+                                        hrSlope = hrSlope,
+                                        steps20s = steps20s,
+                                        accelRms = accelRms,
+                                        accelPeak = accelPeak,
+                                        ppgStd = ppgStd,
+                                        timeOfDay = tod,
+                                        needsHelp = false
+                                    )
+                                    Wearable.getMessageClient(context)
+                                        .sendMessage(
+                                            node.id,
+                                            "/watch_her/watch_to_phone",
+                                            payload.encodeJson().toByteArray()
+                                        )
+                                        .addOnSuccessListener {
+                                            Log.d("WatchHerWear", "Sent metrics")
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("WatchHerWear", "Failed to send metrics", e)
+                                        }
+                                }
+                            }
+                    }
                 }
             }
 
@@ -364,34 +504,5 @@ class MainActivity : ComponentActivity() {
 
         startService(Intent(this, PhoneReceiverService::class.java))
 
-        Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
-            for (node in nodes) {
-                Log.d("WatchHerWear", "Found node: ${node.displayName}")
-
-                val data = WatchToPhone(
-                    accelPeak = 10.0,
-                    accelRms = 2.0,
-                    heartRateMean = 5.0,
-                    heartRateStd = 2.5,
-                    needsHelp = true,
-                    ppg = 11.11,
-                    steps = 25,
-                    timeOfDay = 0.78
-                )
-
-                Wearable.getMessageClient(this)
-                    .sendMessage(
-                        node.id,
-                        "/watch_her/watch_to_phone",
-                        data.encodeJson().toByteArray()
-                    )
-                    .addOnSuccessListener {
-                        Log.d("WatchHerWear", "Message Sent!!!")
-                    }
-                    .addOnFailureListener { e ->
-                        Log.e("WatchHerWear", "Failed to send message", e)
-                    }
-            }
-        }
     }
 }
