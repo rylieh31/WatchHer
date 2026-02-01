@@ -16,14 +16,13 @@ class PhoneReceiverService : WearableListenerService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("WatchHer", "PhoneReceiverService started")
+        Log.d("PhoneReceiverService", "PhoneReceiverService started")
         return super.onStartCommand(intent, flags, startId)
     }
 
     override fun onMessageReceived(message: MessageEvent) {
-        val json = String(message.data, StandardCharsets.UTF_8)
-        val phoneToWatch = PhoneToWatch.decodeJson(json)
-        Log.d("WatchHer", "Received message: $phoneToWatch")
+        val phoneToWatch = PhoneToWatch.decodeJson(String(message.data))
+        Log.d("PhoneReceiverService", "Received message: $phoneToWatch")
 
         val intent = Intent(ACTION_HEART_RATE_UPDATE)
         intent.putExtra(EXTRA_HEART_RATE, phoneToWatch.confidencePercentage)

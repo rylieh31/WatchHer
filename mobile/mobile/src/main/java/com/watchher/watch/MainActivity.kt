@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.google.android.gms.wearable.Wearable
+import com.watchher.messages.PhoneToWatch
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -26,19 +27,25 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
-        startService(Intent(this, WatchRecieverService::class.java))
+        startService(Intent(this, WatchReceiverService::class.java))
 
         Wearable.getNodeClient(this).connectedNodes.addOnSuccessListener { nodes ->
             for (node in nodes) {
-                Log.d("WatchHer", "Found node: ${node.displayName}")
+                Log.d("WatchHerMobile", "Found node: ${node.displayName}")
+
+                val data = PhoneToWatch(0.52)
 
                 Wearable.getMessageClient(this)
-                    .sendMessage(node.id, "/watch_her/phone_to_watch", "penis".toByteArray())
+                    .sendMessage(
+                        node.id,
+                        "/watch_her/phone_to_watch",
+                        data.encodeJson().toByteArray()
+                    )
                     .addOnSuccessListener {
-                        Log.d("WatchHer", "Message Sent!!!")
+                        Log.d("WatchHerMobile", "Message Sent!!!")
                     }
                     .addOnFailureListener { e ->
-                        Log.e("WatchHer", "Failed to send message", e)
+                        Log.e("WatchHerMobile", "Failed to send message", e)
                     }
             }
         }
