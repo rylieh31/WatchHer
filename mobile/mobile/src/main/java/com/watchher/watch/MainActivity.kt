@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
 import android.view.LayoutInflater
-import android.view.View
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -18,6 +17,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import com.google.android.gms.wearable.Wearable
 import com.watchher.messages.PhoneToWatch
 
@@ -87,39 +87,25 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAddContactDialog() {
         val dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_add_contact, null)
-        val tvTitle = dialogView.findViewById<TextView>(R.id.tv_dialog_title)
-        val btnDelete = dialogView.findViewById<Button>(R.id.btn_dialog_delete)
-        val btnCancel = dialogView.findViewById<Button>(R.id.btn_dialog_cancel)
-        val btnSave = dialogView.findViewById<Button>(R.id.btn_dialog_save)
 
-        tvTitle.text = "Add to Circle"
-        btnDelete.visibility = View.GONE
-        btnSave.text = "Save"
-
-        val alertDialog = AlertDialog.Builder(this)
+        val builder = AlertDialog.Builder(this)
             .setView(dialogView)
-            .setCancelable(true)
-            .create()
+            .setTitle("Add Contact")
+            .setPositiveButton("Save") { _, _ ->
+                val name = dialogView.findViewById<EditText>(R.id.dialog_et_name).text.toString()
+                val phone = dialogView.findViewById<EditText>(R.id.dialog_et_phone).text.toString()
+                val relationship =
+                    dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString()
 
-        alertDialog.window?.setBackgroundDrawableResource(android.R.color.transparent)
-
-        btnCancel.setOnClickListener {
-            alertDialog.dismiss()
-        }
-
-        btnSave.setOnClickListener {
-            val name = dialogView.findViewById<EditText>(R.id.dialog_et_name).text.toString().trim()
-            val phone = dialogView.findViewById<EditText>(R.id.dialog_et_phone).text.toString().trim()
-            val relationship = dialogView.findViewById<EditText>(R.id.dialog_et_relationship).text.toString().trim()
-
-            if (name.isNotEmpty() && phone.isNotEmpty()) {
-                Toast.makeText(this, "Saved: $name", Toast.LENGTH_SHORT).show()
-                alertDialog.dismiss()
-            } else {
-                Toast.makeText(this, "Please fill in Name and Phone", Toast.LENGTH_SHORT).show()
+                if (name.isNotEmpty() && phone.isNotEmpty()) {
+                    // For now, just show a message to prove it works
+                    Toast.makeText(this, "Saved: $name", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, "Please fill in Name and Phone", Toast.LENGTH_SHORT).show()
+                }
             }
-        }
+            .setNegativeButton("Cancel", null)
 
-        alertDialog.show()
+        builder.show()
     }
 }
