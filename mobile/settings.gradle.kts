@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 rootProject.name = "WatchHer"
 include(":mobile")
 include(":wear")
+include(":messages")
