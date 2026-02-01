@@ -50,9 +50,12 @@ dependencies {
     implementation(libs.androidx.core.splashscreen)
     implementation(project(":messages"))
     implementation(libs.androidx.compose.material3)
+    implementation("androidx.health:health-services-client:1.1.0-alpha05")
+    implementation("androidx.concurrent:concurrent-futures-ktx:1.1.0")
     implementation(libs.kotlinx.serialization.json)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
+    implementation(files("libs/samsung-health-sensor-api-1.4.1.aar"))
 }

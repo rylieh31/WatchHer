@@ -1,9 +1,18 @@
 package com.watchher.watch.presentation
 
-import android.content.Intent
+import android.Manifest
+import android.content.*
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.AnimationEndReason
 import androidx.compose.animation.core.LinearEasing
@@ -19,14 +28,21 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import androidx.wear.compose.material.MaterialTheme
 import androidx.wear.compose.material.Text
 import com.watchher.watch.PhoneReceiverService
 import com.watchher.watch.R
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
@@ -35,8 +51,42 @@ class MainActivity : ComponentActivity() {
 
         setContent {
 
-            val WatchHerPink = Color(0xFFE0008A)
-            val WatchHerGreen = Color(0xFF32CD32)
+            val watchHerPink = Color(0xFFE0008A)
+            val watchHerGreen = Color(0xFF32CD32)
+            val context = LocalContext.current
+
+            var heartRate by remember { mutableIntStateOf(0) }
+            var hasPermission by remember { mutableStateOf(false) }
+            var permissionRequestDone by remember { mutableStateOf(false) }
+
+            val permissionLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.RequestPermission(),
+                onResult = { isGranted ->
+                    hasPermission = isGranted
+                    permissionRequestDone = true
+                }
+            )
+
+            DisposableEffect(Unit) {
+                val receiver = object : BroadcastReceiver() {
+                    override fun onReceive(context: Context?, intent: Intent?) {
+                        val newHeartRate = intent?.getIntExtra(PhoneReceiverService.EXTRA_HEART_RATE, 0)
+                        if (newHeartRate != null && newHeartRate > 0) {
+                            heartRate = newHeartRate
+                        }
+                    }
+                }
+                val filter = IntentFilter(PhoneReceiverService.ACTION_HEART_RATE_UPDATE)
+                LocalBroadcastManager.getInstance(context).registerReceiver(receiver, filter)
+
+                onDispose {
+                    LocalBroadcastManager.getInstance(context).unregisterReceiver(receiver)
+                }
+            }
+
+            LaunchedEffect(Unit) {
+                permissionLauncher.launch(Manifest.permission.BODY_SENSORS)
+            }
 
             MaterialTheme {
 
@@ -58,7 +108,7 @@ class MainActivity : ComponentActivity() {
                         Image(
                             painter = painterResource(id = R.drawable.watchher_logo),
                             contentDescription = "WatchHer Logo",
-                            modifier = Modifier.size(52.dp)
+                            modifier = Modifier.size(48.dp)
                         )
 
                         Text(
@@ -68,98 +118,157 @@ class MainActivity : ComponentActivity() {
                             color = Color.White
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        Text(
-                            "Monitoring",
-                            fontSize = 14.sp,
-                            color = Color.White
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Custom progress bar
-                        Box(
-                            modifier = Modifier
-                                .height(8.dp)
-                                .width(130.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(Color.DarkGray)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxHeight()
-                                    .fillMaxWidth(0.6f)
-                                    .background(WatchHerGreen)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        if (alertActive) {
-                            val progress = remember { Animatable(0f) }
-
-                            LaunchedEffect(key1 = Unit) {
-                                val result = progress.animateTo(
-                                    targetValue = 1f,
-                                    animationSpec = tween(
-                                        durationMillis = 10000,
-                                        easing = LinearEasing
-                                    )
-                                )
-                                if (result.endReason == AnimationEndReason.Finished) {
-                                    alertActive = false
-                                    alertSent = true
-                                }
-                            }
-
-                            Text(
-                                "DETECTING DANGER...",
-                                fontSize = 16.sp,
-                                color = WatchHerPink,
-                                fontWeight = FontWeight.Bold
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50.dp))
-                                    .background(Color(0xFF2E2E2E))
-                                    .clickable {
-                                        alertActive = false
-                                        alertSent = false
-                                    }
-                                    .drawWithContent {
-                                        drawContent()
-                                        drawRect(
-                                            color = Color.Black.copy(alpha = 0.3f),
-                                            size = size.copy(width = size.width * progress.value)
-                                        )
-                                    }
+                        if (permissionRequestDone && !hasPermission) {
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    "Cancel",
+                                    "Permission Denied",
+                                    color = watchHerPink,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "Heart rate data is required for WatchHer to function.",
                                     color = Color.White,
-                                    fontSize = 14.sp,
-                                    modifier = Modifier.padding(horizontal = 32.dp, vertical = 10.dp)
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 12.sp
+                                )
+                                Spacer(Modifier.height(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(Color(0xFF2E2E2E))
+                                        .clickable {
+                                            val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                            val uri = Uri.fromParts("package", context.packageName, null)
+                                            intent.data = uri
+                                            context.startActivity(intent)
+                                        }
+                                        .padding(horizontal = 32.dp, vertical = 10.dp)
+                                ) {
+                                    Text("Open Settings", color = Color.White, fontSize = 14.sp)
+                                }
+                            }
+                        } else {
+                            val monitoringText = if (heartRate > 0) "$heartRate BPM" else "Monitoring..."
+                            Text(
+                                monitoringText,
+                                fontSize = 14.sp,
+                                color = Color.White
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
+
+                            val hrProgress = ((heartRate - 50f) / 130f).coerceIn(0f, 1f)
+
+                            // Custom progress bar
+                            Box(
+                                modifier = Modifier
+                                    .height(8.dp)
+                                    .width(130.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color.DarkGray)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(hrProgress)
+                                        .background(watchHerGreen)
                                 )
                             }
-                        } else if (alertSent) {
-                            Text(
-                                "ALERT SENT",
-                                fontSize = 16.sp,
-                                color = WatchHerPink,
-                                fontWeight = FontWeight.Bold
-                            )
-                        } else {
-                            Text(
-                                "SAFE",
-                                fontSize = 16.sp,
-                                color = WatchHerGreen,
-                                fontWeight = FontWeight.Bold
-                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            if (alertActive) {
+                                val progress = remember { Animatable(0f) }
+                                val vibrator = remember {
+                                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                        val vibratorManager =
+                                            context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                                        vibratorManager.defaultVibrator
+                                    } else {
+                                        @Suppress("DEPRECATION")
+                                        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+                                    }
+                                }
+
+                                LaunchedEffect(alertActive) {
+                                    if (alertActive) {
+                                        val vibrationJob: Job = launch {
+                                            while (isActive) {
+                                                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+                                                delay(2500)
+                                            }
+                                        }
+
+                                        val result = progress.animateTo(
+                                            targetValue = 1f,
+                                            animationSpec = tween(
+                                                durationMillis = 10000,
+                                                easing = LinearEasing
+                                            )
+                                        )
+                                        if (result.endReason == AnimationEndReason.Finished) {
+                                            alertActive = false
+                                            alertSent = true
+                                        }
+                                        vibrationJob.cancel()
+                                    }
+                                }
+
+                                Text(
+                                    "DETECTING DANGER...",
+                                    fontSize = 16.sp,
+                                    color = watchHerPink,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(2.dp))
+
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50.dp))
+                                        .background(Color(0xFF2E2E2E))
+                                        .clickable {
+                                            alertActive = false
+                                            alertSent = false
+                                        }
+                                        .drawWithContent {
+                                            drawContent()
+                                            drawRect(
+                                                color = Color.Black.copy(alpha = 0.3f),
+                                                size = size.copy(width = size.width * progress.value)
+                                            )
+                                        }
+                                ) {
+                                    Text(
+                                        "Cancel",
+                                        color = Color.White,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.padding(horizontal = 32.dp, vertical = 10.dp)
+                                    )
+                                }
+                            } else if (alertSent) {
+                                Text(
+                                    "ALERT SENT",
+                                    fontSize = 16.sp,
+                                    color = watchHerPink,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            } else {
+                                Text(
+                                    "SAFE",
+                                    fontSize = 16.sp,
+                                    color = watchHerGreen,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
