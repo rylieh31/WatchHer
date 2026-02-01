@@ -5,11 +5,13 @@ import kotlinx.serialization.json.Json
 
 @Serializable
 data class WatchMessage(
-    val heartRate: Double,
+    val heartRateMean: Double,
+    val heartRateStd: Double,
     val steps: Int,
-    val acceleration: Double,
+    val accelRms: Double,
+    val accelPeak: Double,
     val ppg: Double,
-    val timeOfDat: Double
+    val timeOfDay: Double
 ) {
     fun encodeJson(): String {
         return Json.encodeToString(this)
